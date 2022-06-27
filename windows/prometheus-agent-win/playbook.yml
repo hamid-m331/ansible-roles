@@ -1,0 +1,56 @@
+# fetch from remote server to local
+- hosts: prom
+  tasks:
+    - name: synchronize
+      synchronize:
+        src: /etc/prometheus/prometheus.yml
+        dest: /tmp/prometheus-test.yml
+        mode: pull
+# windows wmi exporter installation
+- hosts: windows
+  roles:
+    - sbaerlocher.wmi_exporter
+# win exporter service will restart
+  tasks:
+    - name: Start windows_exporter
+      win_service: 
+        name: windows_exporter
+        state: started 
+#    - name: Print all available facts
+#      ansible.builtin.debug:
+#        var: ansible_facts
+# hostnames will be injected into a local file for later transport
+    - name: Add hostnames to tempfile
+      delegate_to: 127.0.0.1 
+      delegate_facts: True
+      lineinfile:
+        path: /tmp/prometheus-test.yml
+        #regexp: '^automation_adds'
+        #insertafter: '^#automation_adds'
+        line: "
+          \ - job_name: '{{ ansible_hostname }}' \n
+           \ \ \ scrape_interval: 30s \n
+            \ \ \ static_configs: \n
+            \ \ \ - targets: ['{{ inventory_hostname }}:9182'] \n
+            "
+        create: yes
+# local tmp file will replace in remote
+- hosts: prom
+  tasks:
+    - name: synchronize
+      synchronize:
+        src: /tmp/prometheus-test.yml
+        dest: /etc/prometheus/prometheus.yml
+        mode: push
+#        delay_updates: no
+#        rsync_opts: 
+#          - "-t"
+# prometheus service will be restarted
+    - name: Start service prometheus.service, if not started
+      ansible.builtin.service:
+        name: prometheus.service
+        state: restarted
+#        delay_updates: no
+#        rsync_opts: 
+#          - "--append"
+#          - "-u
