@@ -1,0 +1,41 @@
+---
+
+- name: VM attribute change
+  gather_facts: no
+  hosts: localhost
+
+
+
+  vars_files:
+    - "vmware.vars"
+  vars:
+    IPs: []
+  vars_prompt:
+  - name: vcenter_password
+    prompt: What is your vcenter_password?
+    private: yes
+
+  tasks:
+    - name: Get virtual machine info
+      vmware_guest_info:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        datacenter: "{{ vsphere_datacenter }}"
+        name: "{{ item }}"
+        validate_certs: False
+      register: gather_vm_info
+      with_items: "{{ vm_list }}"
+
+    - name: get job ID
+      community.vmware.vmware_guest_custom_attributes:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        name: "{{ item.instance.hw_name }}"
+        validate_certs: False
+        state: present
+        attributes:
+          - name: IPv4
+            value: "{{ item.instance.ipv4 }}"
+      with_items: "{{ gather_vm_info.results }}"
